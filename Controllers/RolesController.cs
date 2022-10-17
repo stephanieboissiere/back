@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using AMO_4.Data;
 using AMO_4.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace AMO_4.Controllers
 {
@@ -22,6 +23,7 @@ namespace AMO_4.Controllers
         }
 
         // GET: api/Roles
+        //voir les roles
         [HttpGet]
         public async Task<ActionResult<IEnumerable<Role>>> GetRoles()
         {
@@ -29,7 +31,9 @@ namespace AMO_4.Controllers
         }
 
         // GET: api/Roles/5
+        //voir un role
         [HttpGet("{id}")]
+        [Authorize(Roles = "admin")]
         public async Task<ActionResult<Role>> GetRole(int id)
         {
            
@@ -46,31 +50,9 @@ namespace AMO_4.Controllers
         }
 
         // PUT: api/Roles/5
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
+        //modifier un role
         [HttpPut("{id}")]
-        //        var book = context.Books
-        //        .Include(p => p.Tags)
-        //          .First();
-
-        //        var tagToRemove = book.Tags
-        //            .Single(x => x.TagId == "Editor's Choice");
-        //        book.Tags.Remove(tagToRemove);
-        //context.SaveChanges();
-
-        //public void Update(int id,Role updatedGroup)
-        //{
-        //    Role role = _context.Roles
-        //        .Include(g => g.User)
-        //        .FirstOrDefault(g => g.roleId == updatedGroup.roleId);
-
-        //    role.User = updatedGroup.User
-        //        .Select(u => role.User.FirstOrDefault(ou => ou.userId == u.userId) ?? u)
-        //        .ToList();
-
-        //    // Do other changes on group as needed.
-
-        //    _context.SaveChanges();
-        //}
+        [Authorize(Roles = "admin")]
         public async Task<IActionResult> PutRole(int id, Role role)
         {
             if (id != role.roleId)
@@ -100,8 +82,9 @@ namespace AMO_4.Controllers
         }
 
         // POST: api/Roles
-        // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
+        //ajouter un role à un utilisateur
         [HttpPost]
+        [Authorize(Roles = "admin")]
         [Route("Add")]
         public async Task<ActionResult<Role>> PostRoleUser(Role role)
         {
@@ -118,9 +101,10 @@ namespace AMO_4.Controllers
             return CreatedAtAction("GetRole", new { id = role.roleId }, role);
         }
 
+        //modifier un role à un utilisateur
         [HttpPost]
         [Route("Remove")]
-    
+        [Authorize(Roles = "admin")]
         public async Task<ActionResult<Role>> RemoveRoleUser(Role role)
         {
             var selectRoles = _context.Roles.Include(p => p.User).SingleOrDefault(p => p.roleId == role.roleId);
@@ -130,52 +114,27 @@ namespace AMO_4.Controllers
 
             return CreatedAtAction("GetRole", new { id = role.roleId }, role);
         }
+
+        //creer un nouveau role
         [HttpPost]
-        
-        //public async Task<ActionResult<Role>> PostRole(Role role)
+        [Authorize(Roles = "admin")]
+        public async Task<ActionResult<Role>> PostRole(Role role)
 
-        //{
-        //    var existingUser = _context.Users.SingleOrDefault(t => t.userId == 1);
-            
-        //    role.User.Add(existingUser);
-        //    _context.Roles.Add(role);
-            
-
-
-
-        //    await _context.SaveChangesAsync();
-
-        //    return CreatedAtAction("GetRole", new { id = role.roleId }, existingUser);
-           
-            
-
-        //}
-        [HttpPost]
-        [Route("go")]
-        public async Task<ActionResult<Role>> PostGo( Role role)
         {
-            
-            var existingTag1 = _context.Users.Single(t => t.userId == 1);
-            var existingTag2 = _context.Users.Single(t => t.userId == 2);
-            var newRole = new Role()
-            {
-                name = "My Book bis",
-                color = "essai",
-                description ="essai",
-                User = new List<User>()
-            };
-            newRole.User.Add(existingTag1);
-            newRole.User.Add(existingTag2);
-            _context.Roles.Add(newRole);
+         
+            _context.Roles.Add(role);
+          
             await _context.SaveChangesAsync();
 
-            return CreatedAtAction("GetRole", new { id = role.roleId }, newRole);
-
-
-
+            return CreatedAtAction("GetRole", new { id = role.roleId }, role);
+         
         }
+
+
+
+
         [HttpDelete("{id}")]
-        //[Route("no")]
+        [Authorize(Roles = "admin")]
         public async Task<IActionResult> DeleteRoleUser(int Id)
         {
             {
@@ -190,30 +149,11 @@ namespace AMO_4.Controllers
 
                     await _context.SaveChangesAsync();
 
-                    
-               // }
                 return NoContent();
             }
 
 
         }
-
-        // DELETE: api/Roles/5
-        [HttpDelete("{id}")]
-        //public async Task<IActionResult> DeleteRole(int id)
-        //{
-        //    var role = await _context.Roles.FindAsync(id);
-        //    if (role == null)
-        //    {
-        //        return NotFound();
-        //    }
-
-        //    _context.Roles.Remove(role);
-        //    await _context.SaveChangesAsync();
-
-        //    return NoContent();
-        //}
-
         private bool RoleExists(int id)
         {
             return _context.Roles.Any(e => e.roleId == id);

@@ -57,13 +57,14 @@ namespace AMO_4
                      ValidateIssuerSigningKey = true,
                      ValidIssuer = "https://localhost:5001",
                      ValidAudience = "https://localhost:5001",
-                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("superSecretKey@345"))
+                     IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("superTopSecretKey@30170"))
                  };
              });
             services.AddMvc();
             services.AddSwaggerGen();
            
             services.AddDbContext<MyWebApiContext>(opt =>
+
                 opt.UseNpgsql(Configuration.GetConnectionString("MyWebApiConection")));
 
            

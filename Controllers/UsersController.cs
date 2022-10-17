@@ -12,6 +12,8 @@ using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using Microsoft.Extensions.Configuration;
+using Newtonsoft.Json;
 
 namespace AMO_4.Controllers
 {
@@ -20,14 +22,16 @@ namespace AMO_4.Controllers
     public class UsersController : ControllerBase
     {
         private readonly MyWebApiContext _context;
+        private readonly IConfiguration _configuration;
 
-        public UsersController(MyWebApiContext context)
+        public UsersController(MyWebApiContext context, IConfiguration configuration)
         {
             _context = context;
+            _configuration = configuration;
         }
 
         // GET: api/Users
-        [HttpGet, Authorize(Roles = "visiteur")]
+        [HttpGet, Authorize(Roles="admin")]
         //
         public async Task<ActionResult<IEnumerable<User>>> GetUsers()
         {
@@ -35,7 +39,8 @@ namespace AMO_4.Controllers
         }
         
         // GET: api/Users/5
-        [HttpGet("{id}")]
+        [HttpGet("{id}"), Authorize]
+        
         public async Task<ActionResult<User>> GetUser(int id)
         {
             var user = await _context.Users.Include(b => b.Role).FirstOrDefaultAsync(i => i.userId == id);
@@ -51,7 +56,8 @@ namespace AMO_4.Controllers
 
         // PUT: api/Users/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
-        [HttpPut("{id}")]
+        [HttpPut("{id}"), Authorize(Roles = "admin")]
+       // [Authorize(Roles = "admin")]
         public async Task<IActionResult> PutUser(int id, User user)
         {
             if (id != user.userId)
@@ -89,32 +95,41 @@ namespace AMO_4.Controllers
             {
                 return BadRequest("Invalid client request");
             }
-            var user = _context.Users.Include(b =>b.Role).FirstOrDefault(u =>(u.name == userModel.name) && (u.password == userModel.password));
-            //var user = await _context.Users.Include(b => b.Role).FirstOrDefaultAsync(i => i.userId == id);
+            //string password = Password.hasPassword(user.Password)
+            var user = _context.Users.Include(b => b.Role).FirstOrDefault(u =>(u.username == userModel.username) && (u.password == userModel.password));
 
-            if (user != null)
-            {
-                var secretKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("superSecretKey@345"));
-                var signinCredentials = new SigningCredentials(secretKey, SecurityAlgorithms.HmacSha256);
 
-                var claims = new List<Claim>
+            if (user != null)//
             {
-                new Claim(ClaimTypes.Name, userModel.name),
-                new Claim(ClaimTypes.Role, "visiteur"),
-                //new Claim(ClaimTypes.Role, userModel.Role.First().name),
-                //
-            };
+                var secretKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration.GetSection("AppSettings:token").Value));//
+                var signinCredentials = new SigningCredentials(secretKey, SecurityAlgorithms.HmacSha256);//
+                var claims = new List<Claim>();
+                try { 
+                 claims = new List<Claim>
+                {
+                new Claim(ClaimTypes.Name, user.username),
+                new Claim(ClaimTypes.Role, user.Role.First().name),
+
+                }; 
+                }catch (Exception e)
+                {
+                    Console.WriteLine(e.Message);
+                }
                 var tokeOptions = new JwtSecurityToken(
                            issuer: "https://localhost:5001",
                            audience: "https://localhost:5001",
                            claims: claims,
-                           expires: DateTime.Now.AddMinutes(5),
-                           signingCredentials: signinCredentials
-                       );
-
+                           expires: DateTime.Now.AddMinutes(50),
+                           signingCredentials: signinCredentials);
 
                 var tokenString = new JwtSecurityTokenHandler().WriteToken(tokeOptions);
-                return Ok(new AuthenticatedResponse { Token = tokenString });
+                
+               return Ok(new AuthenticatedResponse { 
+                    Token = tokenString,
+                    name = user.username,
+                    //role = user.Role.First().name,
+
+                });
             } else
             {
                 return NotFound();
@@ -124,10 +139,30 @@ namespace AMO_4.Controllers
                 
                 
          }
+        [HttpGet, Route("User")]
+        public IActionResult Get()
+        {
+            return Ok(new AuthenticatedResponse
+            {
+                
+                name = User.Identity.Name,
+                role = User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty,
+                
+                //Claims = User.Identities.FirstOrDefault().Claims
+                //.Select(x => new { x.Type, x.Value })
+            });
+           
+        }
 
-        [HttpPost]
+        [HttpPost, Authorize(Roles = "admin")]
+        
         public async Task<ActionResult<User>> PostUser(User user)
         {
+            var dbuser = _context.Users.Where(u => u.username == user.username).FirstOrDefault();
+            if (dbuser != null)
+            {
+                return BadRequest("Username already exists in database");
+            }
             _context.Users.Add(user);
 
             await _context.SaveChangesAsync();
@@ -137,6 +172,7 @@ namespace AMO_4.Controllers
 
         // DELETE: api/Users/5
         [HttpDelete("{id}")]
+        [Authorize(Roles = "admin")]
         public async Task<IActionResult> DeleteUser(int id)
         {
             var user = await _context.Users.FindAsync(id);

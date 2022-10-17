@@ -117,6 +117,9 @@ namespace AMO_4.Migrations
                     b.Property<string>("ref_user")
                         .HasColumnType("text");
 
+                    b.Property<string>("username")
+                        .HasColumnType("text");
+
                     b.HasKey("userId");
 
                     b.ToTable("Users");
