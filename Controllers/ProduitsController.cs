@@ -1,12 +1,10 @@
-﻿using System;
+﻿using AMO_4.Data;
+using AMO_4.Models;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using AMO_4.Data;
-using AMO_4.Models;
 
 namespace AMO_4.Controllers
 {
@@ -49,7 +47,7 @@ namespace AMO_4.Controllers
         {
             if (id != produit.Id)
             {
-                return BadRequest();
+                return BadRequest("Invalid client request");
             }
 
             _context.Entry(produit).State = EntityState.Modified;
@@ -62,7 +60,7 @@ namespace AMO_4.Controllers
             {
                 if (!ProduitExists(id))
                 {
-                    return NotFound();
+                    return NotFound("le produit n'est pas trouvé");
                 }
                 else
                 {

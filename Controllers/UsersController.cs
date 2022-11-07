@@ -14,6 +14,8 @@ using System.Security.Claims;
 using System.Text;
 using Microsoft.Extensions.Configuration;
 using Newtonsoft.Json;
+using System.Security.Cryptography;
+using AMO_4.Services;
 
 namespace AMO_4.Controllers
 {
@@ -23,11 +25,13 @@ namespace AMO_4.Controllers
     {
         private readonly MyWebApiContext _context;
         private readonly IConfiguration _configuration;
+        private readonly ITokenService _tokenService;
 
-        public UsersController(MyWebApiContext context, IConfiguration configuration)
+        public UsersController(MyWebApiContext context, IConfiguration configuration, ITokenService tokenService)
         {
             _context = context;
             _configuration = configuration;
+            _tokenService = tokenService;
         }
 
         // GET: api/Users
@@ -39,32 +43,48 @@ namespace AMO_4.Controllers
         }
         
         // GET: api/Users/5
-        [HttpGet("{id}"), Authorize]
+        [HttpGet("{id}"), Authorize(Roles="admin")]
         
         public async Task<ActionResult<User>> GetUser(int id)
         {
             var user = await _context.Users.Include(b => b.Role).FirstOrDefaultAsync(i => i.userId == id);
-
-
             if (user == null)
             {
                 return NotFound();
             }
-
             return user;
         }
+        //GET:api/Users/CurrentUser
+        [HttpGet, Authorize, Route("CurrentUser")]
+        public async Task<ActionResult<User>> GetCurrentUser()
+        {
+            var user = await _context.Users.Include(b => b.Role).FirstOrDefaultAsync(i => i.username == User.Identity.Name);
+            if (user == null)
+            {
+                return NotFound();
+            }
+            return user;
+        }
+
+        //public async Task<ActionResult<User>> GetCurrentUser()
+        //{
+        //    var user = await _context.Users.Include(b => b.Role).FirstOrDefaultAsync(i => i.username == User.Identity.Name);
+        //    if (user == null)
+        //    {
+        //        return NotFound();
+        //    }
+        //    return user;
+        //}
 
         // PUT: api/Users/5
         // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
         [HttpPut("{id}"), Authorize(Roles = "admin")]
-       // [Authorize(Roles = "admin")]
         public async Task<IActionResult> PutUser(int id, User user)
         {
             if (id != user.userId)
             {
                 return BadRequest();
             }
-
             _context.Entry(user).State = EntityState.Modified;
 
             try
@@ -82,7 +102,6 @@ namespace AMO_4.Controllers
                     throw;
                 }
             }
-
             return NoContent();
         }
 
@@ -95,76 +114,83 @@ namespace AMO_4.Controllers
             {
                 return BadRequest("Invalid client request");
             }
-            //string password = Password.hasPassword(user.Password)
-            var user = _context.Users.Include(b => b.Role).FirstOrDefault(u =>(u.username == userModel.username) && (u.password == userModel.password));
+            string password = PasswordService.hashPassword(userModel.password);
+            var user = _context.Users.Include(b => b.Role).FirstOrDefault(u =>(u.username == userModel.username) && (u.password == password));
+            if (user is null)
+                return Unauthorized();
 
-
-            if (user != null)//
+            var claims = new List<Claim>
             {
-                var secretKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration.GetSection("AppSettings:token").Value));//
-                var signinCredentials = new SigningCredentials(secretKey, SecurityAlgorithms.HmacSha256);//
-                var claims = new List<Claim>();
-                try { 
-                 claims = new List<Claim>
-                {
-                new Claim(ClaimTypes.Name, user.username),
-                new Claim(ClaimTypes.Role, user.Role.First().name),
+                new Claim(ClaimTypes.Name, userModel.username),
+                new Claim(ClaimTypes.Role, user.Role.First().name)
+            };
+            //contient la logique pour générer le jeton d'accès
+            var accessToken = _tokenService.GenerateAccessToken(claims);
+            //contient la logique pour générer le jeton d'actualisation.
+            var refreshToken = _tokenService.GenerateRefreshToken();
 
-                }; 
-                }catch (Exception e)
-                {
-                    Console.WriteLine(e.Message);
-                }
-                var tokeOptions = new JwtSecurityToken(
-                           issuer: "https://localhost:5001",
-                           audience: "https://localhost:5001",
-                           claims: claims,
-                           expires: DateTime.Now.AddMinutes(50),
-                           signingCredentials: signinCredentials);
+            user.RefreshToken = refreshToken;
+            user.RefreshTokenExpiryTime = DateTime.Now.AddDays(1);
 
-                var tokenString = new JwtSecurityTokenHandler().WriteToken(tokeOptions);
-                
-               return Ok(new AuthenticatedResponse { 
-                    Token = tokenString,
-                    name = user.username,
-                    //role = user.Role.First().name,
+            _context.SaveChanges();
 
-                });
-            } else
-            {
-                return NotFound();
-            }
-
-           
-                
-                
-         }
-        [HttpGet, Route("User")]
-        public IActionResult Get()
-        {
             return Ok(new AuthenticatedResponse
             {
-                
-                name = User.Identity.Name,
-                role = User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty,
-                
-                //Claims = User.Identities.FirstOrDefault().Claims
-                //.Select(x => new { x.Type, x.Value })
+                Token = accessToken,
+                RefreshToken = refreshToken
             });
-           
         }
+        //if (user != null)//
+        //{
+        //    var secretKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration.GetSection("AppSettings:token").Value));//
+        //    var signinCredentials = new SigningCredentials(secretKey, SecurityAlgorithms.HmacSha256);//
+        //    var claims = new List<Claim>();
+        //    try { 
+        //     claims = new List<Claim>
+        //    {
+        //    new Claim(ClaimTypes.Name, user.username),
+        //    new Claim(ClaimTypes.Role, user.Role.First().name),
+
+        //    }; 
+        //    }catch (Exception e)
+        //    {
+        //        Console.WriteLine(e.Message);
+        //    }
+        //    var tokeOptions = new JwtSecurityToken(
+        //               issuer: "https://localhost:5001",
+        //               audience: "https://localhost:5001",
+        //               claims: claims,
+        //               expires: DateTime.Now.AddMinutes(50),
+        //               signingCredentials: signinCredentials);
+
+        //    var tokenString = new JwtSecurityTokenHandler().WriteToken(tokeOptions);
+
+        //   return Ok(new AuthenticatedResponse { 
+        //        Token = tokenString,
+        //        name = user.username,
+        //        //role = user.Role.First().name,
+
+        //    });
+        //} else
+        //{
+        //    return NotFound();
+        //}
+
+
+
 
         [HttpPost, Authorize(Roles = "admin")]
-        
         public async Task<ActionResult<User>> PostUser(User user)
         {
+
             var dbuser = _context.Users.Where(u => u.username == user.username).FirstOrDefault();
             if (dbuser != null)
             {
                 return BadRequest("Username already exists in database");
             }
+            user.password = PasswordService.hashPassword(user.password);
+           
             _context.Users.Add(user);
-
             await _context.SaveChangesAsync();
 
             return CreatedAtAction("GetUser", new { id = user.userId }, user);
@@ -180,7 +206,6 @@ namespace AMO_4.Controllers
             {
                 return NotFound();
             }
-
             _context.Users.Remove(user);
             await _context.SaveChangesAsync();
 
@@ -191,5 +216,26 @@ namespace AMO_4.Controllers
         {
             return _context.Users.Any(e => e.userId == id);
         }
+        private void CreatePasswordHash(string password, out byte[] passwordHash, out byte[] passwordSalt)
+        {
+            using (var hmac = new HMACSHA512())
+            {
+                passwordSalt = hmac.Key;
+                passwordHash = hmac.ComputeHash(System.Text.Encoding.UTF8.GetBytes(password));
+            }
+        }
+        //[HttpGet, Route("User")]
+        //public IActionResult Get()
+        //{
+        //    return Ok(new AuthenticatedResponse
+        //    {
+
+        //        name = User.Identity.Name,
+        //        role = User.FindFirst(ClaimTypes.Role)?.Value ?? string.Empty,
+
+        //      
+        //    });
+
+        //}
     }
 }

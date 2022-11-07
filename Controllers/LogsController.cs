@@ -24,14 +24,15 @@ namespace AMO_4.Controllers
             _context = context;
         }
 
-      
+
+        // GET: api/Logs
+        //[HttpGet]
+        //public async Task<ActionResult<IEnumerable<Log>>> GetLogs()
+        //{
+
+        //    return await _context.Logs.Include(b => b.produit).Include(c => c.user).ToListAsync();
+        //}
                 // GET: api/Logs
-                //[HttpGet]
-                //public async Task<ActionResult<IEnumerable<Log>>> GetLogs()
-                //{
-                    
-                //    return await _context.Logs.Include(b => b.produit).Include(c => c.user).ToListAsync();
-                //}
                 [HttpGet]
                 public async Task<List<Log>> GetDate(string dateStart, string dateEnd)
                 {
